@@ -1,7 +1,6 @@
 import os
 import logging
 from pydoc import text
-import chromadb
 from typing import List, Dict, Any
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
@@ -31,7 +30,14 @@ class VectorDB:
         )
 
         # Initialize ChromaDB client
-        self.client = chromadb.PersistentClient(path="./chroma_db")
+        try:
+            import chromadb as chromadb_module
+        except ImportError as exc:
+            raise ImportError(
+                "chromadb is not installed. Install it with: pip install chromadb"
+            ) from exc
+        self.chromadb = chromadb_module
+        self.client = self.chromadb.PersistentClient(path="./chroma_db")
 
         # Load embedding model
         print(f"Loading embedding model: {self.embedding_model_name}")

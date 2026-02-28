@@ -4,7 +4,11 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from vectordb import VectorDB
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
+try:
+    from langchain_groq import ChatGroq
+except ImportError:  # Optional dependency
+    ChatGroq = None
 from langchain_google_genai import ChatGoogleGenerativeAI
 import logging
 import PyPDF2
@@ -124,12 +128,12 @@ Format your answer in a clear and concise manner using Markdown. Always cite the
                 api_key=os.getenv("OPENAI_API_KEY"), model=model_name, temperature=0.0
             )
 
-        elif os.getenv("GROQ_API_KEY"):
+        elif os.getenv("GROQ_API_KEY") and ChatGroq is not None:
             model_name = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
             print(f"Using Groq model: {model_name}")
             return ChatGroq(
                 api_key=os.getenv("GROQ_API_KEY"), model=model_name, temperature=0.0
-            )    
+            )
 
         else:
             raise ValueError(
