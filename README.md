@@ -26,6 +26,7 @@ pip install -r requirements.txt
 Create a .env file at the root directory and add the following
 
 GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY_HERE
+
 GOOGLE_MODEL=gemini-2.5-flash
 
 EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
