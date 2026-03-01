@@ -23,8 +23,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 3) Add your API key
-Open the existing .env file in the project root (same level as README.md) and add exactly one of the following:
-- GOOGLE_API_KEY=your_key_here
+Create a .env file at the root directory and add the following
+
+GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY_HERE
+GOOGLE_MODEL=gemini-2.5-flash
+
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+
+CHROMA_COLLECTION_NAME=rag_documents
+
 
 
 Optional model overrides:
@@ -49,15 +56,7 @@ Usage
 - Adjust “Number of sources” in the sidebar to control retrieval depth.
 
 Where to put the API key
-Create a .env file with the following items
-
-GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY_HERE
-GOOGLE_MODEL=gemini-2.5-flash
-
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-
-CHROMA_COLLECTION_NAME=rag_documents
-
+GOOGLE_API_KEY=your_key_here
 
 Notes
 - The first run will build embeddings and may take a few minutes.
