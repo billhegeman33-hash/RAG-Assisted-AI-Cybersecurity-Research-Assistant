@@ -19,10 +19,13 @@ macOS/Linux:
 python3.11 -m venv .venv
 source .venv/bin/activate
 
-2) Install dependencies
+Windows:
+python -m venv .venv
+
+3) Install dependencies
 pip install -r requirements.txt
 
-3) Add your API key
+4) Add your API key
 Create a .env file at the root directory and add the following
 
 GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY_HERE
