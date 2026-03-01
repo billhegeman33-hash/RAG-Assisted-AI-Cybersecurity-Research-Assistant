@@ -84,7 +84,7 @@ def main() -> None:
 		st.session_state.chat_history.append(("assistant", answer))
 
 	st.divider()
-	st.caption("Edit src/streamlit_app.py to customize this app.")
+	
 
 
 if __name__ == "__main__":
