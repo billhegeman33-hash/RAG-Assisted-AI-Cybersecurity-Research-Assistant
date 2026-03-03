@@ -27,7 +27,7 @@ python -m venv .venv
 pip install -r requirements.txt
 
 4) Add your API key
-Create a .env file at the root directory and add the following
+Create a .env file at the root directory and add the following:
 # Google Gemini Configuration
 GOOGLE_API_KEY=your_gemini_api_key_here
 
