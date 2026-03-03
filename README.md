@@ -28,19 +28,26 @@ pip install -r requirements.txt
 
 4) Add your API key
 Create a .env file at the root directory and add the following
-
-GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY_HERE
+# Google Gemini Configuration
+GOOGLE_API_KEY=your_gemini_api_key_here
 
 GOOGLE_MODEL=gemini-2.5-flash
 
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-4o-mini
+
+# Groq Configuration
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=llama-3.1-8b-instant
+
+
+# Embedding model
 EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 
+# Vector Database configuration
 CHROMA_COLLECTION_NAME=rag_documents
 
-
-
-Optional model overrides:
-- GOOGLE_MODEL=gemini-2.5-flash
 
 
 4) Run the app (Streamlit)
