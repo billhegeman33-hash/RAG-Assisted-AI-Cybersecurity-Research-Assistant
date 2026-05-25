@@ -3,10 +3,12 @@ import logging
 from pydoc import text
 from typing import List, Dict, Any
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, CrossEncoder
 
 # Setting up logger
 logger = logging.getLogger(__name__)
+
+DISTANCE_THRESHOLD = 1.3  # L2 distance; chunks above this are unlikely to be relevant
 
 
 class VectorDB:
@@ -43,6 +45,9 @@ class VectorDB:
         print(f"Loading embedding model: {self.embedding_model_name}")
         self.embedding_model = SentenceTransformer(self.embedding_model_name)
 
+        print("Loading reranker model...")
+        self.reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+
         # Get or create collection
         self.collection = self.client.get_or_create_collection(
             name=self.collection_name,
@@ -69,8 +74,8 @@ class VectorDB:
         chunks = []
         
         text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=50,
+        chunk_size=800,
+        chunk_overlap=150,
         separators=["\n\n", "\n", " ", ""],
     )
 
@@ -108,7 +113,7 @@ class VectorDB:
         print(f"Encoding {len(all_chunks)} chunks...")
         embeddings = self.embedding_model.encode(all_chunks, show_progress_bar=True)
         print("Storing chunks in ChromaDB...")
-        self.collection.add(
+        self.collection.upsert(
             embeddings=embeddings,
             documents=all_chunks,
             metadatas=all_metadatas,
@@ -127,28 +132,41 @@ class VectorDB:
         Returns:
             Dictionary containing search results with keys: 'documents', 'metadatas', 'distances', 'ids'
         """
-        
-        # Encode the query string to obtain its embedding vector
-        query_embedding = self.embedding_model.encode([query])[0]
+        # Fetch extra candidates so the reranker has more to work with
+        fetch_k = min(n_results * 3, 15)
 
-        # Query the ChromaDB collection for the most similar documents
-        # n_results controls how many top matches to return
+        query_embedding = self.embedding_model.encode([query])[0]
         results = self.collection.query(
             query_embeddings=[query_embedding],
-            n_results=n_results,
+            n_results=fetch_k,
             include=["documents", "metadatas", "distances"]
         )
 
-        # Extract the first (and only) result list for each field, or empty if no results
         documents = results.get("documents", [[]])[0] if results.get("documents") else []
         metadatas = results.get("metadatas", [[]])[0] if results.get("metadatas") else []
         distances = results.get("distances", [[]])[0] if results.get("distances") else []
-        ids = results.get("ids", [[]])[0] if results.get("ids") else []
+        chunk_ids = results.get("ids", [[]])[0] if results.get("ids") else []
 
-        # Return a dictionary with all relevant search results
+        # Drop chunks that are too far from the query
+        filtered = [
+            (doc, meta, dist, cid)
+            for doc, meta, dist, cid in zip(documents, metadatas, distances, chunk_ids)
+            if dist <= DISTANCE_THRESHOLD
+        ]
+        if not filtered:
+            return {"documents": [], "metadatas": [], "distances": [], "ids": []}
+
+        docs, metas, dists, cids = map(list, zip(*filtered))
+
+        # Rerank with cross-encoder: scores query+chunk pairs directly, more precise than embedding similarity
+        if len(docs) > 1:
+            scores = self.reranker.predict([(query, doc) for doc in docs])
+            ranked = sorted(zip(scores, docs, metas, dists, cids), reverse=True)[:n_results]
+            _, docs, metas, dists, cids = map(list, zip(*ranked))
+
         return {
-            "documents": documents,
-            "metadatas": metadatas,
-            "distances": distances,
-            "ids": ids,
+            "documents": docs[:n_results],
+            "metadatas": metas[:n_results],
+            "distances": dists[:n_results],
+            "ids": cids[:n_results],
         }
