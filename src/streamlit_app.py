@@ -4,156 +4,97 @@ import logging
 
 import streamlit as st
 
+# Must be AFTER `import streamlit` — Streamlit configures its own loggers on import,
+# so any filter added before gets wiped. Target the exact logger that emits the warning.
+class _SuppressScriptRunContextWarning(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "missing ScriptRunContext" not in record.getMessage()
+
+logging.getLogger(
+    "streamlit.runtime.scriptrunner_utils.script_run_context"
+).addFilter(_SuppressScriptRunContextWarning())
+
 # Add src directory to path so imports work
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import RAGAssistant, load_documents
 
-# Suppress Streamlit logger warnings during initialization
-logging.getLogger("streamlit.runtime.scriptrunner").setLevel(logging.ERROR)
-logging.getLogger("streamlit").setLevel(logging.ERROR)
-
 
 @st.cache_resource(show_spinner=False)
 def get_assistant() -> RAGAssistant:
-	assistant = RAGAssistant()
-	documents = load_documents()
-	assistant.add_documents(documents)
-	return assistant
-
-
-def _ensure_streamlit_runtime() -> None:
-	"""Re-exec under Streamlit when run as a plain Python script."""
-	try:
-		from streamlit.runtime import exists
-		if exists():
-			return
-	except Exception:
-		pass
-	
-	if os.getenv("_STREAMLIT_AUTO_RUN") == "1":
-		return
-	
-	base_name = os.path.basename(sys.argv[0]).lower()
-	if base_name in {"streamlit", "streamlit.exe"}:
-		return
-
-	env = os.environ.copy()
-	env["_STREAMLIT_AUTO_RUN"] = "1"
-	
-	# Get the directory of this script
-	script_dir = os.path.dirname(os.path.abspath(__file__))
-	project_root = os.path.dirname(script_dir)
-	
-	args = [
-		sys.executable,
-		"-m",
-		"streamlit",
-		"run",
-		os.path.abspath(__file__),
-		"--logger.level=debug",
-	]
-	args.extend(sys.argv[1:])
-	
-	# Change to project root before executing
-	os.chdir(project_root)
-	os.execvpe(sys.executable, args, env)
+    assistant = RAGAssistant()
+    documents = load_documents()
+    assistant.add_documents(documents)
+    return assistant
 
 
 def main() -> None:
-	st.set_page_config(
-		page_title="Hi I'm Avery, Your Smart Cybersecurity AI Assistant",
-		page_icon="✅",
-		layout="centered",
-	)
+    st.set_page_config(
+        page_title="Avery - Cybersecurity AI Assistant",
+        page_icon="🛡️",
+        layout="wide",
+    )
 
-	st.title("Hi I'm Avery, Your Smart Cybersecurity AI Assistant")
-	st.caption("Ask questions about the documents in the data folder.")
-	st.subheader("Ask a question")
-	st.write("Type your question below and press Enter.")
+    st.title("🛡️ Avery - Cybersecurity AI Assistant")
+    st.markdown("Ask questions about cybersecurity, AI safety, and related topics.")
 
-	with st.sidebar:
-		st.header("Settings")
-		n_results = st.slider("Number of sources", min_value=1, max_value=8, value=3)
-		clear_chat = st.button("Clear chat")
+    # Initialize chat history
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
 
-	if clear_chat:
-		st.session_state.pop("chat_history", None)
+    # Sidebar - Settings
+    with st.sidebar:
+        st.header("Settings")
+        if st.button("Clear Chat History"):
+            st.session_state.chat_history = []
+            st.rerun()
 
-	if "chat_history" not in st.session_state:
-		st.session_state.chat_history = []
+    # Initialize assistant
+    try:
+        assistant = get_assistant()
+    except Exception as exc:
+        st.error(f"Error initializing assistant: {str(exc)}")
+        st.info("Make sure you have a valid API key in your .env file")
+        st.stop()
 
-	try:
-		assistant = get_assistant()
-	except Exception as exc:
-		st.error(str(exc))
-		st.info("Ensure you have a valid API key in your .env file.")
-		return
+    # Display chat history
+    for role, message in st.session_state.chat_history:
+        with st.chat_message(role):
+            st.write(message)
 
-	# Display retrieval stats after assistant is initialized
-	with st.sidebar:
-		st.divider()
-		st.subheader("Retrieval Stats")
-		try:
-			stats = assistant.get_retrieval_stats()
-			st.metric("Total Queries", stats["total_queries"])
-			st.metric("Avg Confidence", f"{stats['avg_confidence']:.1%}")
-			st.metric("High Confidence Rate", f"{stats['high_confidence_rate']:.1%}")
-		except Exception as e:
-			st.caption(f"Stats unavailable: {str(e)}")
+    # Chat input and response
+    user_input = st.chat_input("Ask a question about cybersecurity...")
 
-	for role, message in st.session_state.chat_history:
-		with st.chat_message(role):
-			st.markdown(message)
+    if user_input:
+        # Add user message to history
+        st.session_state.chat_history.append(("user", user_input))
 
-	question = st.chat_input("Ask a question")
-	if question:
-		st.session_state.chat_history.append(("user", question))
-		with st.chat_message("user"):
-			st.markdown(question)
+        # Display user message
+        with st.chat_message("user"):
+            st.write(user_input)
 
-		with st.chat_message("assistant"):
-			with st.spinner("Thinking..."):
-				answer, metrics = assistant.query(question, n_results=n_results)
-				st.markdown(answer)
-				
-				# Show query analysis
-				with st.expander("Query Analysis"):
-					col1, col2, col3 = st.columns(3)
-					with col1:
-						st.write(f"**Query Type:** {metrics.get('query_type', 'general')}")
-					with col2:
-						severity = metrics.get('severity_level')
-						if severity:
-							st.write(f"**Severity:** {severity}")
-					with col3:
-						search_method = metrics.get('search_method', 'vector')
-						st.write(f"**Search:** {search_method}")
-		st.session_state.chat_history.append(("assistant", answer))
+        # Get assistant response
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                try:
+                    answer, metrics = assistant.query(user_input)
+                    st.write(answer)
 
-	st.divider()
-	
+                    # Show basic metrics
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Confidence", f"{metrics.get('avg_confidence', 0):.1%}")
+                    with col2:
+                        st.metric("Sources Found", metrics.get('total_retrieved', 0))
+                    with col3:
+                        st.metric("Query Type", metrics.get('query_type', 'general'))
+                except Exception as e:
+                    st.error(f"Error generating response: {str(e)}")
+                    answer = f"Error: {str(e)}"
+
+        # Add assistant response to history
+        st.session_state.chat_history.append(("assistant", answer))
 
 
 if __name__ == "__main__":
-	# Ensure we're running under Streamlit, not as plain Python
-	try:
-		from streamlit.runtime import exists
-		if not exists():
-			# Not running under Streamlit, re-exec under streamlit
-			import subprocess
-			import sys
-			
-			# Get the absolute path of this script
-			script_path = os.path.abspath(__file__)
-			
-			# Re-exec under streamlit
-			subprocess.run(
-				[sys.executable, "-m", "streamlit", "run", script_path],
-				check=False
-			)
-			sys.exit(0)
-	except Exception:
-		pass
-	
-	main()
+    main()

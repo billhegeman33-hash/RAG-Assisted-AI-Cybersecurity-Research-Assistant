@@ -1,3 +1,4 @@
+import math
 import os
 import logging
 from pydoc import text
@@ -133,7 +134,7 @@ class VectorDB:
             Dictionary containing search results with keys: 'documents', 'metadatas', 'distances', 'ids'
         """
         # Fetch extra candidates so the reranker has more to work with
-        fetch_k = min(n_results * 3, 15)
+        fetch_k = min(n_results * 5, 15)
 
         query_embedding = self.embedding_model.encode([query])[0]
         results = self.collection.query(
@@ -154,19 +155,28 @@ class VectorDB:
             if dist <= DISTANCE_THRESHOLD
         ]
         if not filtered:
-            return {"documents": [], "metadatas": [], "distances": [], "ids": []}
+            return {"documents": [], "metadatas": [], "distances": [], "ids": [], "scores": []}
 
         docs, metas, dists, cids = map(list, zip(*filtered))
 
         # Rerank with cross-encoder: scores query+chunk pairs directly, more precise than embedding similarity
         if len(docs) > 1:
-            scores = self.reranker.predict([(query, doc) for doc in docs])
-            ranked = sorted(zip(scores, docs, metas, dists, cids), reverse=True)[:n_results]
-            _, docs, metas, dists, cids = map(list, zip(*ranked))
+            raw_scores = self.reranker.predict([(query, doc) for doc in docs])
+            order = sorted(range(len(docs)), key=lambda i: raw_scores[i], reverse=True)[:n_results]
+            docs = [docs[i] for i in order]
+            metas = [metas[i] for i in order]
+            dists = [dists[i] for i in order]
+            cids = [cids[i] for i in order]
+            # Sigmoid converts raw cross-encoder logits to [0, 1] confidence
+            conf_scores = [1.0 / (1.0 + math.exp(-float(raw_scores[i]))) for i in order]
+        else:
+            # Single result: convert L2 distance to a [0, 1] similarity proxy
+            conf_scores = [max(0.0, 1.0 - dists[0] / DISTANCE_THRESHOLD)]
 
         return {
             "documents": docs[:n_results],
             "metadatas": metas[:n_results],
             "distances": dists[:n_results],
             "ids": cids[:n_results],
+            "scores": conf_scores[:n_results],
         }
