@@ -155,6 +155,10 @@ Source documents are publicly released publications from U.S. government agencie
 
 ## Contact & Support
 
-- **GitHub**: [github.com/CraftKernel](https://github.com/CraftKernel)
-- **Issues**: [github.com/CraftKernel/AI-RAG-Research-Assistant-AI-Cybersecurity/issues](https://github.com/CraftKernel/AI-RAG-Research-Assistant-AI-Cybersecurity/issues)
-- **Email**: endyboii1@gmail.com
+-GitHub Repository: 
+https://github.com/billhegeman33-hash/AI-RAG-Research-Assistant-AI-Cybersecurity
+
+-Ready Tensor Profile: 
+https://app.readytensor.ai/users/bill.hegeman33
+
+-Bug reports / questions: Open an issue at the GitHub repository link above
